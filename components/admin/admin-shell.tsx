@@ -1,21 +1,30 @@
 import Link from "next/link";
-import { ArrowLeft, History, Settings, Upload, Users } from "lucide-react";
+import { ArrowLeft, History, LayoutDashboard, Settings, Upload, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/consultant/theme-toggle";
+import type { Theme } from "@/lib/theme";
 
 const NAV = [
+  { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
   { href: "/admin/upload", label: "Upload", icon: <Upload className="h-4 w-4" /> },
   { href: "/admin/history", label: "History", icon: <History className="h-4 w-4" /> },
   { href: "/admin/consultants", label: "Consultants", icon: <Users className="h-4 w-4" /> },
 ];
 
 interface AdminShellProps {
-  active?: string;
-  children: React.ReactNode;
+  pathname: string;
+  theme: Theme;
   director: { display_name: string };
+  children: React.ReactNode;
 }
 
-export function AdminShell({ active, children, director }: AdminShellProps) {
+function isActive(pathname: string, href: string): boolean {
+  if (href === "/admin") return pathname === "/admin";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function AdminShell({ pathname, theme, director, children }: AdminShellProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -41,7 +50,7 @@ export function AdminShell({ active, children, director }: AdminShellProps) {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-2 rounded-md px-3 py-1.5 text-control text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-                  active === item.href && "bg-secondary text-foreground",
+                  isActive(pathname, item.href) && "bg-secondary text-foreground",
                 )}
               >
                 {item.icon}
@@ -49,7 +58,8 @@ export function AdminShell({ active, children, director }: AdminShellProps) {
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <ThemeToggle current={theme} redirectTo={pathname} />
             <span className="hidden text-body text-muted-foreground sm:inline">
               {director.display_name}
             </span>
@@ -67,7 +77,7 @@ export function AdminShell({ active, children, director }: AdminShellProps) {
               href={item.href}
               className={cn(
                 "flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-control text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-                active === item.href && "bg-secondary text-foreground",
+                isActive(pathname, item.href) && "bg-secondary text-foreground",
               )}
             >
               {item.icon}
