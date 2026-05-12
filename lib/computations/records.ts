@@ -38,9 +38,19 @@ interface RecordCandidate {
  *
  * Returns the number of records that changed hands (or value) in this run.
  */
+export interface RecordChange {
+  record_key: string;
+  role: Role;
+  new_holder_id: string;
+  new_holder_name: string;
+  new_value_label: string;
+  previous_holder_id: string | null;
+  previous_holder_name: string | null;
+}
+
 export async function recomputeRecords(
   supabase: SupabaseClient,
-): Promise<{ changed: number; checked: number }> {
+): Promise<{ changed: number; checked: number; changes: RecordChange[] }> {
   // Pull the data we need.
   const { data: aggsRaw, error: aggsErr } = await supabase
     .from("claim_aggregates")
@@ -238,6 +248,7 @@ export async function recomputeRecords(
   for (const r of current ?? []) currentByKey.set(`${r.record_key}|${r.role}`, r);
 
   let changed = 0;
+  const changes: RecordChange[] = [];
   for (const cand of candidates) {
     const key = `${cand.record_key}|${cand.role}`;
     const existing = currentByKey.get(key);
@@ -246,7 +257,11 @@ export async function recomputeRecords(
       existing !== undefined && Math.abs(Number(existing.value) - cand.value) < 0.001;
     if (existing && sameHolder && sameValue) continue;
 
+    let prevHolderId: string | null = null;
+    let prevHolderName: string | null = null;
     if (existing) {
+      prevHolderId = existing.holder_id;
+      prevHolderName = name(existing.holder_id);
       const { error: flipErr } = await supabase
         .from("records")
         .update({ is_current: false })
@@ -266,8 +281,17 @@ export async function recomputeRecords(
     });
     if (insErr) throw new Error(`failed to insert record: ${insErr.message}`);
     changed += 1;
+    changes.push({
+      record_key: cand.record_key,
+      role: cand.role,
+      new_holder_id: cand.holder_id,
+      new_holder_name: cand.holder_display_name,
+      new_value_label: cand.value_label,
+      previous_holder_id: prevHolderId,
+      previous_holder_name: prevHolderName,
+    });
   }
-  return { changed, checked: candidates.length };
+  return { changed, checked: candidates.length, changes };
 }
 
 function pushFastestCycle(

@@ -18,6 +18,18 @@ export interface ConsultantRow {
   joined_at: string;
   auth_user_id: string | null;
   last_seen_in_data: string | null;
+  last_visited_at: string | null;
+}
+
+export type NotificationType = "badge_unlock" | "streak_milestone" | "record_taken" | "record_lost";
+
+export interface NotificationRow {
+  id: string;
+  consultant_id: string;
+  type: NotificationType;
+  payload: Record<string, unknown>;
+  created_at: string;
+  read_at: string | null;
 }
 
 export interface UploadRow {

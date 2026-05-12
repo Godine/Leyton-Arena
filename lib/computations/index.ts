@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { BADGE_BY_KEY } from "@/lib/badges/catalog";
 import { recomputeBadges } from "./badges";
+import {
+  badgeUnlockNotification,
+  emitNotifications,
+  recordLostNotification,
+  recordTakenNotification,
+} from "./notifications";
 import { recomputeRecords } from "./records";
 import { recomputeMonthlySnapshots } from "./snapshots";
 import { recomputeStreaks } from "./streaks";
@@ -21,6 +28,7 @@ export interface RecomputeSummary {
     newlyEarnedCount: number;
   };
   records: { changed: number; checked: number };
+  notifications: { inserted: number };
 }
 
 /**
@@ -33,6 +41,9 @@ export interface RecomputeSummary {
  *      Op Machine tiers don't change with this step.
  *   3. Badges — reads streaks and snapshots, so it runs after both.
  *   4. Records — reads everything; cheap; always runs in full.
+ *   5. Notifications — emitted from the badge unlocks and record changes
+ *      collected by the previous two steps. Skipped on rollback to avoid
+ *      messaging users about flips that aren't real wins.
  */
 export async function runFullRecompute(
   supabase: SupabaseClient,
@@ -45,6 +56,51 @@ export async function runFullRecompute(
   const badges = await recomputeBadges(supabase, ctx.affectedConsultants, ctx.mode, asOfDate);
   const records = await recomputeRecords(supabase);
 
+  let notifications = { inserted: 0 };
+  if (ctx.mode === "commit") {
+    const rows = [];
+    for (const earned of badges.newlyEarned) {
+      const def = BADGE_BY_KEY[earned.badge_key];
+      rows.push(
+        badgeUnlockNotification({
+          consultant_id: earned.consultant_id,
+          badge_key: earned.badge_key,
+          badge_name: def?.name ?? earned.badge_key,
+          badge_icon: def?.icon ?? "Award",
+          role: earned.role,
+          tier: earned.tier,
+          progressLabel:
+            typeof earned.progress_data.progressLabel === "string"
+              ? earned.progress_data.progressLabel
+              : undefined,
+        }),
+      );
+    }
+    for (const change of records.changes) {
+      rows.push(
+        recordTakenNotification({
+          consultant_id: change.new_holder_id,
+          record_key: change.record_key,
+          role: change.role,
+          value_label: change.new_value_label,
+          previous_holder_name: change.previous_holder_name,
+        }),
+      );
+      if (change.previous_holder_id && change.previous_holder_id !== change.new_holder_id) {
+        rows.push(
+          recordLostNotification({
+            consultant_id: change.previous_holder_id,
+            record_key: change.record_key,
+            role: change.role,
+            new_holder_name: change.new_holder_name,
+            new_value_label: change.new_value_label,
+          }),
+        );
+      }
+    }
+    notifications = await emitNotifications(supabase, rows);
+  }
+
   return {
     snapshots,
     streaks,
@@ -53,7 +109,8 @@ export async function runFullRecompute(
       removed: badges.removed,
       newlyEarnedCount: badges.newlyEarned.length,
     },
-    records,
+    records: { changed: records.changed, checked: records.checked },
+    notifications,
   };
 }
 
