@@ -16,6 +16,8 @@ export interface ConsultantRow {
   has_financial_data: boolean;
   is_director: boolean;
   joined_at: string;
+  auth_user_id: string | null;
+  last_seen_in_data: string | null;
 }
 
 export interface UploadRow {

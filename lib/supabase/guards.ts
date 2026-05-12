@@ -31,8 +31,8 @@ export async function requireDirector(): Promise<DirectorAuth> {
   const { data: consultant, error: cErr } = await supabase
     .from("consultants")
     .select("*")
-    .eq("id", user.id)
-    .single<ConsultantRow>();
+    .eq("auth_user_id", user.id)
+    .maybeSingle<ConsultantRow>();
 
   if (cErr || !consultant) {
     return {
