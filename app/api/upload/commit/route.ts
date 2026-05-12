@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { ensureConsultantsForRows } from "@/lib/computations/consultants";
+import { gatherAffectedScope, runFullRecompute } from "@/lib/computations";
 import { recomputeClaimAggregates } from "@/lib/computations/netting";
 import { requireDirector } from "@/lib/supabase/guards";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
@@ -126,7 +127,16 @@ export async function POST(request: NextRequest) {
     const refs = [...new Set(staged.rows.map((r) => r.claim_reference))];
     const netResult = await recomputeClaimAggregates(service, refs);
 
-    // 5. Mark upload committed.
+    // 5. Downstream: monthly snapshots, streaks, badges, records.
+    const scope = await gatherAffectedScope(service, refs);
+    const recompute = await runFullRecompute(service, {
+      affectedClaims: refs,
+      affectedConsultants: scope.affectedConsultants,
+      affectedMonths: scope.affectedMonths,
+      mode: "commit",
+    });
+
+    // 6. Mark upload committed.
     const { error: finalizeErr } = await service
       .from("uploads")
       .update({ status: "committed", committed_at: new Date().toISOString() })
@@ -143,6 +153,7 @@ export async function POST(request: NextRequest) {
       claim_count: refs.length,
       aggregates_upserted: netResult.upsertedCount,
       aggregates_deleted: netResult.deletedCount,
+      recompute,
     });
   } catch (err) {
     const message = (err as Error).message;

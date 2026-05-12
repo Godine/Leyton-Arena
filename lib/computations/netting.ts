@@ -43,13 +43,19 @@ export async function recomputeClaimAggregates(
   }
 
   // Resolve consultant ids by normalized_name for everyone referenced in the
-  // loaded rows. We only need lead consultant + lead expert here.
+  // loaded rows. Lead consultant + lead expert + both reviewer columns: we
+  // need ids for all of them so badges that fire on reviewer activity have a
+  // stable consultant id to attribute against.
   const norms = new Set<string>();
   for (const r of allRows) {
     const lc = normalizeName(r.lead_consultant_name);
     if (lc) norms.add(lc);
     const le = normalizeName(r.lead_expert_name);
     if (le) norms.add(le);
+    const tr = normalizeName(r.tech_writeup_reviewer_name);
+    if (tr) norms.add(tr);
+    const cr = normalizeName(r.cost_assessment_reviewer_name);
+    if (cr) norms.add(cr);
   }
   const consultantByNorm = new Map<string, string>();
   if (norms.size > 0) {
@@ -89,6 +95,10 @@ export async function recomputeClaimAggregates(
     costs_received_date: string | null;
     pre_notification_required: boolean | null;
     pre_notification_date: string | null;
+    tech_writeup_reviewer_name: string | null;
+    tech_writeup_reviewer_id: string | null;
+    cost_assessment_reviewer_name: string | null;
+    cost_assessment_reviewer_id: string | null;
     recomputed_at: string;
   };
 
@@ -156,6 +166,11 @@ export async function recomputeClaimAggregates(
       consultantByNorm.get(normalizeName(latest.lead_consultant_name) ?? "") ?? null;
     const leadExpertId = consultantByNorm.get(normalizeName(latest.lead_expert_name) ?? "") ?? null;
 
+    const techReviewerName = pickString("tech_writeup_reviewer_name");
+    const costReviewerName = pickString("cost_assessment_reviewer_name");
+    const techReviewerId = consultantByNorm.get(normalizeName(techReviewerName) ?? "") ?? null;
+    const costReviewerId = consultantByNorm.get(normalizeName(costReviewerName) ?? "") ?? null;
+
     toUpsert.push({
       claim_reference: ref,
       net_amount: net,
@@ -176,6 +191,10 @@ export async function recomputeClaimAggregates(
       costs_received_date: pickDate("costs_received_date"),
       pre_notification_required: pickBool("pre_notification_required"),
       pre_notification_date: pickDate("pre_notification_date"),
+      tech_writeup_reviewer_name: techReviewerName,
+      tech_writeup_reviewer_id: techReviewerId,
+      cost_assessment_reviewer_name: costReviewerName,
+      cost_assessment_reviewer_id: costReviewerId,
       recomputed_at: new Date().toISOString(),
     });
   }

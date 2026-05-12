@@ -8,6 +8,13 @@ interface ConsultantSeed {
   role: "technical" | "financial" | "both";
 }
 
+interface NameSeedRow {
+  lead_consultant_name: string | null;
+  lead_expert_name: string | null;
+  tech_writeup_reviewer_name?: string | null;
+  cost_assessment_reviewer_name?: string | null;
+}
+
 /**
  * Resolve every unique consultant name across the parsed rows to a
  * `consultants.id`. Creates placeholder rows for names that haven't been seen
@@ -18,12 +25,14 @@ interface ConsultantSeed {
  */
 export async function ensureConsultantsForRows(
   supabase: SupabaseClient,
-  rows: Array<{ lead_consultant_name: string | null; lead_expert_name: string | null }>,
+  rows: NameSeedRow[],
 ): Promise<Map<string, string>> {
   // Gather seeds by normalized name. If a name shows up as both a lead
   // consultant (technical) and a lead expert (financial), record it as both.
+  // Reviewers are role-aligned with the workflow they review: tech writeup
+  // reviewers are technical, cost assessment reviewers are financial.
   const seeds = new Map<string, ConsultantSeed>();
-  const setRole = (name: string | null, role: "technical" | "financial") => {
+  const setRole = (name: string | null | undefined, role: "technical" | "financial") => {
     if (!name) return;
     const norm = normalizeName(name);
     if (!norm) return;
@@ -38,6 +47,8 @@ export async function ensureConsultantsForRows(
   for (const r of rows) {
     setRole(r.lead_consultant_name, "technical");
     setRole(r.lead_expert_name, "financial");
+    setRole(r.tech_writeup_reviewer_name, "technical");
+    setRole(r.cost_assessment_reviewer_name, "financial");
   }
 
   if (seeds.size === 0) return new Map();

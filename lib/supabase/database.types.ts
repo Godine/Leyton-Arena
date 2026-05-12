@@ -84,6 +84,10 @@ export interface ClaimAggregateRow {
   costs_received_date: string | null;
   pre_notification_required: boolean | null;
   pre_notification_date: string | null;
+  tech_writeup_reviewer_name: string | null;
+  tech_writeup_reviewer_id: string | null;
+  cost_assessment_reviewer_name: string | null;
+  cost_assessment_reviewer_id: string | null;
   recomputed_at: string;
 }
 

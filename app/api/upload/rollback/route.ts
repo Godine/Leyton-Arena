@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { gatherAffectedScope, runFullRecompute } from "@/lib/computations";
 import { recomputeClaimAggregates } from "@/lib/computations/netting";
 import { requireDirector } from "@/lib/supabase/guards";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
@@ -80,6 +81,16 @@ export async function POST(request: NextRequest) {
   const refs = [...claimRefs];
   const netResult = await recomputeClaimAggregates(service, refs);
 
+  // Downstream recompute. Use scope-gather BEFORE flipping rolled_back so
+  // streaks/badges/snapshots reflect the new state of claim_aggregates.
+  const scope = await gatherAffectedScope(service, refs);
+  const recompute = await runFullRecompute(service, {
+    affectedClaims: refs,
+    affectedConsultants: scope.affectedConsultants,
+    affectedMonths: scope.affectedMonths,
+    mode: "rollback",
+  });
+
   const { error: markErr } = await service
     .from("uploads")
     .update({ status: "rolled_back", rolled_back_at: new Date().toISOString() })
@@ -97,5 +108,6 @@ export async function POST(request: NextRequest) {
     claims_affected: refs.length,
     aggregates_upserted: netResult.upsertedCount,
     aggregates_deleted: netResult.deletedCount,
+    recompute,
   });
 }
