@@ -1,0 +1,8 @@
+.next
+node_modules
+.vercel
+public
+*.xlsx
+*.csv
+supabase/.branches
+supabase/.temp

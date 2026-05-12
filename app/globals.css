@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 30% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 8%;
+    --primary: 16 89% 54%; /* Leyton orange */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 30% 12%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 30% 12%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 16 89% 54%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 213 56% 10%; /* Leyton navy */
+    --foreground: 220 14% 96%;
+    --card: 213 50% 12%;
+    --card-foreground: 220 14% 96%;
+    --popover: 213 50% 12%;
+    --popover-foreground: 220 14% 96%;
+    --primary: 16 89% 54%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 213 30% 18%;
+    --secondary-foreground: 220 14% 96%;
+    --muted: 213 30% 18%;
+    --muted-foreground: 220 10% 65%;
+    --accent: 213 30% 18%;
+    --accent-foreground: 220 14% 96%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 220 14% 96%;
+    --border: 213 30% 20%;
+    --input: 213 30% 20%;
+    --ring: 16 89% 54%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-body text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
