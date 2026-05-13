@@ -11,24 +11,6 @@
 
 create extension if not exists "pgcrypto";
 
--- ---------- helper: who am I? -----------------------------------------
--- Returns true if the calling auth.uid() maps to a consultant flagged as a
--- director. Used by RLS policies on admin-only tables.
-create or replace function public.current_is_director()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce(
-    (select c.is_director
-       from public.consultants c
-      where c.id = auth.uid()),
-    false
-  );
-$$;
-
 -- =====================================================================
 -- consultants
 -- =====================================================================
@@ -49,6 +31,27 @@ create table public.consultants (
 create unique index consultants_normalized_name_uniq
   on public.consultants (normalized_name);
 create index consultants_email_idx on public.consultants (email);
+
+-- ---------- helper: who am I? -----------------------------------------
+-- Returns true if the calling auth.uid() maps to a consultant flagged as a
+-- director. Used by RLS policies on admin-only tables. Defined here, after
+-- the consultants table, because Postgres validates the function body at
+-- create time. Migration 0003 rewrites this to use auth_user_id once the
+-- column is added.
+create or replace function public.current_is_director()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select c.is_director
+       from public.consultants c
+      where c.id = auth.uid()),
+    false
+  );
+$$;
 
 -- =====================================================================
 -- uploads
