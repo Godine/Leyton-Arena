@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -19,6 +18,19 @@ const Schema = z.object({
 
 export type SendMagicLinkResult = { ok: true; email: string } | { ok: false; error: string };
 
+/**
+ * Build the canonical site origin. Reads from NEXT_PUBLIC_SITE_URL — set this
+ * in Vercel to your production URL (e.g.
+ * https://leyton-arena-godine-6161s-projects.vercel.app, no trailing slash)
+ * and in .env.local to http://localhost:3000. Throws at request time if the
+ * env var is missing so the misconfiguration is loud.
+ */
+function getSiteOrigin(): string {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!raw) throw new Error("NEXT_PUBLIC_SITE_URL is not configured");
+  return raw.replace(/\/+$/, ""); // strip any trailing slashes defensively
+}
+
 export async function sendMagicLink(formData: FormData): Promise<SendMagicLinkResult> {
   const parsed = Schema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
@@ -27,11 +39,7 @@ export async function sendMagicLink(formData: FormData): Promise<SendMagicLinkRe
   }
 
   const supabase = createSupabaseServerClient();
-  const host = headers().get("origin") ?? headers().get("x-forwarded-host") ?? "";
-  const origin =
-    host.startsWith("http://") || host.startsWith("https://")
-      ? host
-      : `https://${host || "localhost:3000"}`;
+  const origin = getSiteOrigin();
 
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
