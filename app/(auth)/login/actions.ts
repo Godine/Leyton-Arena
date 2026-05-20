@@ -36,48 +36,76 @@ export async function submitPin(input: { role: PinRole; pin: string }): Promise<
   const expected = role === "director" ? DIRECTOR_PIN : CONSULTANT_PIN;
   if (pin !== expected) return { ok: false, error: "Wrong PIN." };
 
-  const consultantId = await pickConsultantForRole(role);
-  if (!consultantId) {
-    return {
-      ok: false,
-      error: "No consultants in the database yet. Run a daily upload first.",
-    };
+  const result = await pickConsultantForRole(role);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
   }
 
-  await setPinSessionCookie({ consultant_id: consultantId, role });
+  await setPinSessionCookie({ consultant_id: result.consultant_id, role });
   return { ok: true, role };
 }
 
-async function pickConsultantForRole(role: PinRole): Promise<string | null> {
-  const service = createSupabaseServiceRoleClient();
+interface PickResult {
+  ok: true;
+  consultant_id: string;
+}
+interface PickError {
+  ok: false;
+  error: string;
+}
+
+async function pickConsultantForRole(role: PinRole): Promise<PickResult | PickError> {
+  let service;
+  try {
+    service = createSupabaseServiceRoleClient();
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Supabase service-role client failed to init: ${(e as Error).message}. Check SUPABASE_SERVICE_ROLE_KEY in Vercel.`,
+    };
+  }
 
   if (role === "director") {
-    const { data } = await service
+    const { data, error } = await service
       .from("consultants")
       .select("id")
       .eq("is_director", true)
       .order("display_name", { ascending: true })
       .limit(1)
       .maybeSingle<{ id: string }>();
-    if (data?.id) return data.id;
-    // No directors yet — fall through and just use the first consultant. The
-    // user can flip the is_director flag from /admin/consultants once in.
+    if (error) {
+      return { ok: false, error: `Director lookup failed: ${error.message}` };
+    }
+    if (data?.id) return { ok: true, consultant_id: data.id };
+    // No directors yet — fall through and just use the first consultant.
   } else {
-    const { data } = await service
+    const { data, error } = await service
       .from("consultants")
       .select("id")
       .eq("is_director", false)
       .order("display_name", { ascending: true })
       .limit(1)
       .maybeSingle<{ id: string }>();
-    if (data?.id) return data.id;
+    if (error) {
+      return { ok: false, error: `Consultant lookup failed: ${error.message}` };
+    }
+    if (data?.id) return { ok: true, consultant_id: data.id };
   }
 
-  const { data: anyRow } = await service
+  const { data: anyRow, error: anyErr } = await service
     .from("consultants")
     .select("id")
     .order("display_name", { ascending: true })
     .limit(1)
     .maybeSingle<{ id: string }>();
-  return anyRow?.id ?? null;
+  if (anyErr) {
+    return { ok: false, error: `Fallback lookup failed: ${anyErr.message}` };
+  }
+  if (anyRow?.id) return { ok: true, consultant_id: anyRow.id };
+
+  return {
+    ok: false,
+    error:
+      "Zero rows in the consultants table. Paste supabase/seeds/demo.sql into the Supabase SQL editor first (and confirm it ran on the right project — the URL in your Supabase dashboard must match NEXT_PUBLIC_SUPABASE_URL in Vercel).",
+  };
 }
