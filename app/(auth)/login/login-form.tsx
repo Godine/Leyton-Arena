@@ -1,37 +1,38 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowRight, Mail, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Loader2, Settings, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { sendMagicLink } from "./actions";
+import { cn } from "@/lib/utils";
+import { submitPin } from "./actions";
+
+type Role = "director" | "consultant";
 
 export function LoginForm() {
-  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const [role, setRole] = useState<Role | null>(null);
+  const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
-  if (sentTo) {
+  if (!role) {
     return (
-      <div className="flex flex-col items-center gap-3 py-4 text-center">
-        <CheckCircle2 className="h-8 w-8 text-primary" />
-        <div className="space-y-1">
-          <p className="text-subhead font-medium">Check your inbox</p>
-          <p className="text-body text-muted-foreground">
-            We sent a magic link to <span className="text-foreground">{sentTo}</span>. It expires in
-            1 hour.
-          </p>
-        </div>
-        <button
-          className="mt-2 text-body text-muted-foreground underline-offset-4 hover:underline"
-          onClick={() => {
-            setSentTo(null);
-            setError(null);
-          }}
-        >
-          Use a different email
-        </button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <RoleButton
+          icon={<Settings className="h-5 w-5" />}
+          label="Director"
+          description="Upload, manage, audit"
+          onClick={() => setRole("director")}
+        />
+        <RoleButton
+          icon={<UserRound className="h-5 w-5" />}
+          label="Consultant"
+          description="Dashboard, leaderboard"
+          onClick={() => setRole("consultant")}
+        />
       </div>
     );
   }
@@ -39,40 +40,92 @@ export function LoginForm() {
   return (
     <form
       className="flex flex-col gap-4"
-      action={(formData) => {
+      onSubmit={(e) => {
+        e.preventDefault();
         setError(null);
         startTransition(async () => {
-          const result = await sendMagicLink(formData);
-          if (result.ok) setSentTo(result.email);
-          else setError(result.error);
+          const result = await submitPin({ role, pin });
+          if (!result.ok) {
+            setError(result.error);
+            return;
+          }
+          router.replace(result.role === "director" ? "/admin" : "/dashboard");
+          router.refresh();
         });
       }}
     >
+      <button
+        type="button"
+        onClick={() => {
+          setRole(null);
+          setPin("");
+          setError(null);
+        }}
+        className="-mt-1 inline-flex w-fit items-center gap-1 text-body text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        <span>Change role</span>
+      </button>
+
       <div className="space-y-2">
-        <Label htmlFor="email">Work email</Label>
-        <div className="relative">
-          <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            autoFocus
-            required
-            placeholder="you@leyton.com"
-            className="pl-9"
-            disabled={pending}
-          />
-        </div>
+        <Label htmlFor="pin">{role === "director" ? "Director" : "Consultant"} PIN</Label>
+        <Input
+          id="pin"
+          name="pin"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          autoFocus
+          required
+          maxLength={4}
+          pattern="\d{4}"
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+          placeholder="••••"
+          className="text-center text-section font-medium tracking-[0.5em]"
+          disabled={pending}
+        />
       </div>
+
       {error ? <p className="text-body text-destructive">{error}</p> : null}
-      <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Sending..." : "Send magic link"}
-        {!pending && <ArrowRight className="h-4 w-4" />}
+
+      <Button type="submit" disabled={pending || pin.length !== 4} className="w-full">
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        <span>{pending ? "Signing in..." : "Continue"}</span>
       </Button>
+
       <p className="text-eyebrow uppercase tracking-wide text-muted-foreground">
-        No password needed. We&apos;ll email you a one-time link.
+        Demo PIN. Replace with real auth before going to production.
       </p>
     </form>
+  );
+}
+
+function RoleButton({
+  icon,
+  label,
+  description,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-start gap-1 rounded-lg border border-border bg-card p-4 text-left transition-colors",
+        "hover:border-primary/40 hover:bg-secondary",
+      )}
+    >
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-primary">
+        {icon}
+      </span>
+      <p className="mt-1 text-control font-medium">{label}</p>
+      <p className="text-eyebrow uppercase tracking-wide text-muted-foreground">{description}</p>
+    </button>
   );
 }

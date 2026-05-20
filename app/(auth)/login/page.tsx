@@ -1,17 +1,15 @@
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPinSessionFromCookie } from "@/lib/auth/pin-session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  // If already signed in, skip the form.
-  const supabase = createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) redirect("/dashboard");
+  const session = await getPinSessionFromCookie();
+  if (session) {
+    redirect(session.role === "director" ? "/admin" : "/dashboard");
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
@@ -22,7 +20,10 @@ export default async function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in</CardTitle>
-          <CardDescription>Climb the leaderboard. Collect badges. Bank the ops.</CardDescription>
+          <CardDescription>
+            Choose your role and enter the 4-digit PIN. Demo mode — replace with real auth before
+            production.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />

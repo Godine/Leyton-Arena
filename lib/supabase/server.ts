@@ -1,15 +1,27 @@
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import { PIN_COOKIE } from "@/lib/auth/pin-session";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 /**
- * Server-side Supabase client bound to the user's auth cookies. Use this in
- * server components, route handlers, and server actions. RLS applies.
+ * Server-side Supabase client.
+ *
+ * DEMO MODE: when the PIN session cookie is set we return the service-role
+ * client so RLS doesn't block reads (the demo flow has no Supabase Auth
+ * user, so auth.uid() is null and every RLS policy would deny). When there's
+ * no PIN cookie we fall back to the cookie-bound anon client so the /login
+ * page still works pre-auth.
+ *
+ * This deliberately leaks past RLS — replace before production.
  */
 export function createSupabaseServerClient() {
   const cookieStore = cookies();
+  const hasPinCookie = !!cookieStore.get(PIN_COOKIE)?.value;
+  if (hasPinCookie) {
+    return createSupabaseServiceRoleClient();
+  }
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,8 +36,7 @@ export function createSupabaseServerClient() {
               cookieStore.set(name, value, options);
             }
           } catch {
-            // setAll throws when called from a Server Component. The middleware
-            // will refresh the session, so this is safe to swallow here.
+            // setAll throws when called from a Server Component. Safe to swallow.
           }
         },
       },
@@ -34,9 +45,9 @@ export function createSupabaseServerClient() {
 }
 
 /**
- * Server-only client that uses the service role key — bypasses RLS. Reserved
- * for the upload pipeline and any other write path that needs to operate on
- * behalf of every consultant. NEVER expose this client to the browser.
+ * Server-only client that uses the service role key — bypasses RLS. Used by
+ * /api/upload/* and (in demo mode) by every page-side query.
+ * NEVER expose this client to the browser.
  */
 export function createSupabaseServiceRoleClient() {
   return createClient(
